@@ -5,19 +5,59 @@
 # For details see the COPYRIGHT file distributed with LuaDist.
 # Please note that the package source code is licensed under its own license.
 
+# Find ARCH by machine
+case `uname -m` in
+    x86_64) ARCH=x64;;
+    i686)   ARCH=x86;;
+    i386)   ARCH=x86;;
+    arm*)   ARCH=arm;;
+esac
+
+# Find OS by kernel name
+case `uname -s` in
+  Linux)
+    OS=linux
+    OSARCH=$OS/$ARCH
+    ;;
+  Darwin)
+    OS=osx
+    OSARCH=$OS # universal
+esac
+
 REPO=`dirname "$(cd ${0%/*} && echo $PWD/${0##*/})"`
-BOOT=$REPO/_bootstrap
-BUILD=$BOOT/tmp
+if [ -z "$BOOTSTRAP_TMP" ]; then
+  TMP=$REPO/tmp/$OSARCH
+else
+  TMP=$BOOTSTRAP_TMP/luadist/$OSARCH
+fi
+
+BUILD=$TMP/build
+BOOT=$TMP/bootstrap
 LUADIST=$BOOT/bin/luadist
-INSTALL=$REPO/_install
+
+# Extra repos
+REPOS="${BOOTSTRAP_REPOS:-$REPO/repos}"
+INSTALL="${BOOTSTRAP_INSTALL:-$REPO/luadist}/$OSARCH"
 
 echo "## This will build some LuaDist components TWO times!"
 
-mkdir -p "$BUILD" && cd "$BUILD" && cmake "$REPO" -DCMAKE_INSTALL_PREFIX="$BOOT"
+mkdir -p "$BUILD"
+cd "$BUILD"
+cmake "$REPO" -DCMAKE_INSTALL_PREFIX="$BOOT" -DCMAKE_BUILD_TYPE="Debug" -DCMAKE_BOOTSTRAP_REPOS="$REPOS"
 cmake --build "$BUILD" --target install -- -j6
 
 echo "## Bootstrap done, building LuaDist using LuaDist"
 
-$LUADIST "$INSTALL" install luadist-git -binary=false -source $@
+dists=(luajit srlua luafilesystem luasocket zlib lua-git luadist-git)
+for dist in "${dists[@]}"; do
+  if [ -d "$REPOS/$dist" ]; then
+    dist_path=$REPOS/$dist
+  else
+    dist_path=$BUILD/$dist/src/$dist
+    #$LUADIST "$INSTALL" install $dist -binary=false -source $@
+  fi
+
+  $LUADIST "$INSTALL" make $dist_path -DLUASOCKET_UNIX=ON
+done
 
 echo "## LuaDist is now built and can be found in the $INSTALL"

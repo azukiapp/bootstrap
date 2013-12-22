@@ -18,8 +18,8 @@ endif ()
 set ( BOOT_PREFIX ${CMAKE_INSTALL_PREFIX} )
 
 # Install dists required for bootstrap by default
-set ( DISTS 
-  lua
+set ( DISTS
+  luajit
   srlua
   luafilesystem
   luasocket
@@ -32,14 +32,20 @@ set ( DISTS
 configure_file ( config.in ${CMAKE_CURRENT_BINARY_DIR}/config.cmake )
 
 macro ( install_dist _DIST )
-  set ( _DIST_SOURCE GIT_REPOSITORY http://github.com/LuaDist/${_DIST}.git GIT_TAG master )
+  set ( _DOWNLOAD ${CMAKE_BOOTSTRAP_REPOS}/${_DIST} )
+
+  if ( NOT EXISTS "${_DOWNLOAD}/" )
+    set ( _DIST_SOURCE GIT_REPOSITORY http://github.com/LuaDist/${_DIST}.git GIT_TAG master )
+  else ()
+    set ( _DIST_SOURCE SOURCE_DIR ${_DOWNLOAD} )
+  endif ()
 
   # Build project using the generated settings in cache
   ExternalProject_Add( ${_DIST}
       PREFIX ${_DIST}
       ${_DIST_SOURCE}
       BINARY_DIR ${_DIST}
-      INSTALL_DIR ${CMAKE_INSTALL_PREFIX}
+      INSTALL_DIR ${BOOT_PREFIX}
       CMAKE_ARGS -C ${CMAKE_CURRENT_BINARY_DIR}/config.cmake
       DEPENDS ${_PREV}
     )
